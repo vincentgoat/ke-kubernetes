@@ -24,8 +24,6 @@ import (
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/wait"
-	clientset "k8s.io/client-go/kubernetes"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	"k8s.io/kubernetes/pkg/kubelet/apis/config/validation"
@@ -168,77 +166,6 @@ func (cc *Controller) Bootstrap() (*kubeletconfig.KubeletConfiguration, error) {
 	// set status to indicate the active source is the non-nil last-known-good source
 	cc.configStatus.SetActive(lastKnownGoodSource.NodeConfigSource())
 	return lastKnownGoodConfig, nil
-}
-
-// StartSync tells the controller to start the goroutines that sync status/config to/from the API server.
-// The clients must be non-nil, and the nodeName must be non-empty.
-func (cc *Controller) StartSync(client clientset.Interface, eventClient v1core.EventsGetter, nodeName string) error {
-	const errFmt = "cannot start Kubelet config sync: %s"
-	if client == nil {
-		return fmt.Errorf(errFmt, "nil client")
-	}
-	if eventClient == nil {
-		return fmt.Errorf(errFmt, "nil event client")
-	}
-	if nodeName == "" {
-		return fmt.Errorf(errFmt, "empty nodeName")
-	}
-
-	// Rather than use utilruntime.HandleCrash, which doesn't actually crash in the Kubelet,
-	// we use HandlePanic to manually call the panic handlers and then crash.
-	// We have a better chance of recovering normal operation if we just restart the Kubelet in the event
-	// of a Go runtime error.
-	// NOTE(mtaufen): utilpanic.HandlePanic returns a function and you have to call it for your thing to run!
-	// This was EVIL to debug (difficult to see missing `()`).
-	// The code now uses `go name()` instead of `go utilpanic.HandlePanic(func(){...})()` to avoid confusion.
-
-	// status sync worker
-	statusSyncLoopFunc := utilpanic.HandlePanic(func() {
-		klog.InfoS("Kubelet config controller starting status sync loop")
-		wait.JitterUntil(func() {
-			cc.configStatus.Sync(client, nodeName)
-		}, 10*time.Second, 0.2, true, wait.NeverStop)
-	})
-	// remote config source informer, if we have a remote source to watch
-	assignedSource, err := cc.checkpointStore.Assigned()
-	if err != nil {
-		return fmt.Errorf(errFmt, err)
-	} else if assignedSource == nil {
-		klog.InfoS("Kubelet config controller local source is assigned, will not start remote config source informer")
-	} else {
-		cc.remoteConfigSourceInformer = assignedSource.Informer(client, cache.ResourceEventHandlerFuncs{
-			AddFunc:    cc.onAddRemoteConfigSourceEvent,
-			UpdateFunc: cc.onUpdateRemoteConfigSourceEvent,
-			DeleteFunc: cc.onDeleteRemoteConfigSourceEvent,
-		},
-		)
-	}
-	remoteConfigSourceInformerFunc := utilpanic.HandlePanic(func() {
-		if cc.remoteConfigSourceInformer != nil {
-			klog.InfoS("Kubelet config controller starting remote config source informer")
-			cc.remoteConfigSourceInformer.Run(wait.NeverStop)
-		}
-	})
-	// node informer
-	cc.nodeInformer = newSharedNodeInformer(client, nodeName,
-		cc.onAddNodeEvent, cc.onUpdateNodeEvent, cc.onDeleteNodeEvent)
-	nodeInformerFunc := utilpanic.HandlePanic(func() {
-		klog.InfoS("Kubelet config controller starting Node informer")
-		cc.nodeInformer.Run(wait.NeverStop)
-	})
-	// config sync worker
-	configSyncLoopFunc := utilpanic.HandlePanic(func() {
-		klog.InfoS("Kubelet config controller starting Kubelet config sync loop")
-		wait.JitterUntil(func() {
-			cc.syncConfigSource(client, eventClient, nodeName)
-		}, 10*time.Second, 0.2, true, wait.NeverStop)
-	})
-
-	go statusSyncLoopFunc()
-	go remoteConfigSourceInformerFunc()
-	go nodeInformerFunc()
-	go configSyncLoopFunc()
-	return nil
 }
 
 // loadConfig loads Kubelet config from a checkpoint
