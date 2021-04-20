@@ -223,7 +223,6 @@ type Dependencies struct {
 	// Injected Dependencies
 	Auth                    server.AuthInterface
 	CAdvisorInterface       cadvisor.Interface
-	Cloud                   cloudprovider.Interface
 	ContainerManager        cm.ContainerManager
 	DockerOptions           *DockerOptions
 	EventClient             v1core.EventsGetter
@@ -534,7 +533,6 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		streamingConnectionIdleTimeout:          kubeCfg.StreamingConnectionIdleTimeout.Duration,
 		recorder:                                kubeDeps.Recorder,
 		cadvisor:                                kubeDeps.CAdvisorInterface,
-		cloud:                                   kubeDeps.Cloud,
 		externalCloudProvider:                   cloudprovider.IsExternal(cloudProvider),
 		providerID:                              providerID,
 		nodeRef:                                 nodeRef,
@@ -1005,11 +1003,6 @@ type Kubelet struct {
 	// scheduled on this node and makes it so.
 	volumeManager volumemanager.VolumeManager
 
-	// Cloud provider interface.
-	cloud cloudprovider.Interface
-
-	// Indicates that the node initialization happens in an external cloud controller
-	externalCloudProvider bool
 	// Reference to this node.
 	nodeRef *v1.ObjectReference
 
