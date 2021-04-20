@@ -57,7 +57,6 @@ import (
 	"k8s.io/client-go/util/certificate"
 	"k8s.io/client-go/util/connrotation"
 	"k8s.io/client-go/util/keyutil"
-	cloudprovider "k8s.io/cloud-provider"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/configz"
 	"k8s.io/component-base/featuregate"
@@ -381,7 +380,6 @@ func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.Fea
 	return &kubelet.Dependencies{
 		Auth:                nil, // default does not enforce auth[nz]
 		CAdvisorInterface:   nil, // cadvisor.New launches background processes (bg http.ListenAndServe, and some bg cleaners), not set here
-		Cloud:               nil, // cloud provider might start background processes
 		ContainerManager:    nil,
 		DockerOptions:       dockerOptions,
 		KubeClient:          nil,
