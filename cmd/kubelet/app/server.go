@@ -911,19 +911,7 @@ func getNodeName(cloud cloudprovider.Interface, hostname string) (types.NodeName
 		return types.NodeName(hostname), nil
 	}
 
-	instances, ok := cloud.Instances()
-	if !ok {
-		return "", fmt.Errorf("failed to get instances from cloud provider")
-	}
-
-	nodeName, err := instances.CurrentNodeName(context.TODO(), hostname)
-	if err != nil {
-		return "", fmt.Errorf("error fetching current node name from cloud provider: %v", err)
-	}
-
-	klog.V(2).InfoS("Cloud provider determined current node", "nodeName", klog.KRef("", string(nodeName)))
-
-	return nodeName, nil
+	return "", nil
 }
 
 // InitializeTLS checks for a configured TLSCertFile and TLSPrivateKeyFile: if unspecified a new self-signed
