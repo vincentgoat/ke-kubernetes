@@ -229,34 +229,6 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 				klog.InfoS("unsupported configuration:KubeletCgroups is not within KubeReservedCgroup")
 			}
 
-			// use dynamic kubelet config, if enabled
-			var kubeletConfigController *dynamickubeletconfig.Controller
-			if dynamicConfigDir := kubeletFlags.DynamicConfigDir.Value(); len(dynamicConfigDir) > 0 {
-				var dynamicKubeletConfig *kubeletconfiginternal.KubeletConfiguration
-				dynamicKubeletConfig, kubeletConfigController, err = BootstrapKubeletConfigController(dynamicConfigDir,
-					func(kc *kubeletconfiginternal.KubeletConfiguration) error {
-						// Here, we enforce flag precedence inside the controller, prior to the controller's validation sequence,
-						// so that we get a complete validation at the same point where we can decide to reject dynamic config.
-						// This fixes the flag-precedence component of issue #63305.
-						// See issue #56171 for general details on flag precedence.
-						return kubeletConfigFlagPrecedence(kc, args)
-					})
-				if err != nil {
-					klog.ErrorS(err, "Failed to bootstrap a configuration controller", "dynamicConfigDir", dynamicConfigDir)
-					os.Exit(1)
-				}
-				// If we should just use our existing, local config, the controller will return a nil config
-				if dynamicKubeletConfig != nil {
-					kubeletConfig = dynamicKubeletConfig
-					// Note: flag precedence was already enforced in the controller, prior to validation,
-					// by our above transform function. Now we simply update feature gates from the new config.
-					if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates); err != nil {
-						klog.ErrorS(err, "Failed to set feature gates from initial flags-based config")
-						os.Exit(1)
-					}
-				}
-			}
-
 			// construct a KubeletServer from kubeletFlags and kubeletConfig
 			kubeletServer := &options.KubeletServer{
 				KubeletFlags:         *kubeletFlags,
@@ -270,8 +242,6 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 				os.Exit(1)
 			}
 
-			// add the kubelet config controller to kubeletDeps
-			kubeletDeps.KubeletConfigController = kubeletConfigController
 
 			if err := checkPermissions(); err != nil {
 				klog.ErrorS(err, "kubelet running with insufficient permissions")
