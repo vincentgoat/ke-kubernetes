@@ -540,7 +540,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	if err != nil {
 		return err
 	}
-	nodeName, err := getNodeName(kubeDeps.Cloud, hostName)
+	nodeName, err := getNodeName(hostName)
 	if err != nil {
 		return err
 	}
@@ -923,12 +923,8 @@ func kubeClientConfigOverrides(s *options.KubeletServer, clientConfig *restclien
 
 // getNodeName returns the node name according to the cloud provider
 // if cloud provider is specified. Otherwise, returns the hostname of the node.
-func getNodeName(cloud cloudprovider.Interface, hostname string) (types.NodeName, error) {
-	if cloud == nil {
-		return types.NodeName(hostname), nil
-	}
-
-	return "", nil
+func getNodeName(hostname string) (types.NodeName, error) {
+	return types.NodeName(hostname), nil
 }
 
 // InitializeTLS checks for a configured TLSCertFile and TLSPrivateKeyFile: if unspecified a new self-signed
@@ -1034,7 +1030,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		return err
 	}
 	// Query the cloud provider for our node name, default to hostname if kubeDeps.Cloud == nil
-	nodeName, err := getNodeName(kubeDeps.Cloud, hostname)
+	nodeName, err := getNodeName(hostname)
 	if err != nil {
 		return err
 	}
@@ -1057,8 +1053,6 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		return fmt.Errorf("dual-stack --node-ip %q not supported in a single-stack cluster", kubeServer.NodeIP)
 	} else if len(nodeIPs) > 2 || (len(nodeIPs) == 2 && utilnet.IsIPv6(nodeIPs[0]) == utilnet.IsIPv6(nodeIPs[1])) {
 		return fmt.Errorf("bad --node-ip %q; must contain either a single IP or a dual-stack pair of IPs", kubeServer.NodeIP)
-	} else if len(nodeIPs) == 2 && kubeServer.CloudProvider != "" {
-		return fmt.Errorf("dual-stack --node-ip %q not supported when using a cloud provider", kubeServer.NodeIP)
 	} else if len(nodeIPs) == 2 && (nodeIPs[0].IsUnspecified() || nodeIPs[1].IsUnspecified()) {
 		return fmt.Errorf("dual-stack --node-ip %q cannot include '0.0.0.0' or '::'", kubeServer.NodeIP)
 	}
@@ -1086,8 +1080,6 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		hostnameOverridden,
 		nodeName,
 		nodeIPs,
-		kubeServer.ProviderID,
-		kubeServer.CloudProvider,
 		kubeServer.CertDirectory,
 		kubeServer.RootDirectory,
 		kubeServer.ImageCredentialProviderConfigFile,
@@ -1152,8 +1144,6 @@ func createAndInitKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	hostnameOverridden bool,
 	nodeName types.NodeName,
 	nodeIPs []net.IP,
-	providerID string,
-	cloudProvider string,
 	certDirectory string,
 	rootDirectory string,
 	imageCredentialProviderConfigFile string,
@@ -1187,8 +1177,6 @@ func createAndInitKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		hostnameOverridden,
 		nodeName,
 		nodeIPs,
-		providerID,
-		cloudProvider,
 		certDirectory,
 		rootDirectory,
 		imageCredentialProviderConfigFile,
