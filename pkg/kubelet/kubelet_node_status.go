@@ -32,7 +32,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
-	cloudproviderapi "k8s.io/cloud-provider/api"
 	"k8s.io/klog/v2"
 	kubeletapis "k8s.io/kubelet/pkg/apis"
 	k8s_api_v1 "k8s.io/kubernetes/pkg/apis/core/v1"
@@ -330,15 +329,6 @@ func (kl *Kubelet) initialNode(ctx context.Context) (*v1.Node, error) {
 		nodeTaints = append(nodeTaints, unschedulableTaint)
 	}
 
-	if kl.externalCloudProvider {
-		taint := v1.Taint{
-			Key:    cloudproviderapi.TaintExternalCloudProvider,
-			Value:  "true",
-			Effect: v1.TaintEffectNoSchedule,
-		}
-
-		nodeTaints = append(nodeTaints, taint)
-	}
 	if len(nodeTaints) > 0 {
 		node.Spec.Taints = nodeTaints
 	}
@@ -368,10 +358,6 @@ func (kl *Kubelet) initialNode(ctx context.Context) (*v1.Node, error) {
 			klog.InfoS("the node label will overwrite default setting", "labelKey", k, "labelValue", v, "default", cv)
 		}
 		node.ObjectMeta.Labels[k] = v
-	}
-
-	if kl.providerID != "" {
-		node.Spec.ProviderID = kl.providerID
 	}
 
 	kl.setNodeStatus(node)
