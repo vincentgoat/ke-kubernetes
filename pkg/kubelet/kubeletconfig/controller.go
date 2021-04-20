@@ -17,7 +17,6 @@ limitations under the License.
 package kubeletconfig
 
 import (
-	"fmt"
 	"k8s.io/klog/v2"
 	"path/filepath"
 	"time"
@@ -31,7 +30,6 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/kubeletconfig/checkpoint"
 	"k8s.io/kubernetes/pkg/kubelet/kubeletconfig/checkpoint/store"
 	"k8s.io/kubernetes/pkg/kubelet/kubeletconfig/status"
-	utilpanic "k8s.io/kubernetes/pkg/kubelet/kubeletconfig/util/panic"
 	utilfs "k8s.io/kubernetes/pkg/util/filesystem"
 )
 
