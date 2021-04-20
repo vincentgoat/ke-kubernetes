@@ -808,14 +808,6 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		return err
 	}
 
-	// If the kubelet config controller is available, and dynamic config is enabled, start the config and status sync loops
-	if utilfeature.DefaultFeatureGate.Enabled(features.DynamicKubeletConfig) && len(s.DynamicConfigDir.Value()) > 0 &&
-		kubeDeps.KubeletConfigController != nil && !standaloneMode && !s.RunOnce {
-		if err := kubeDeps.KubeletConfigController.StartSync(kubeDeps.KubeClient, kubeDeps.EventClient, string(nodeName)); err != nil {
-			return err
-		}
-	}
-
 	if s.HealthzPort > 0 {
 		mux := http.NewServeMux()
 		healthz.InstallHandler(mux)
