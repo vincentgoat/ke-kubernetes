@@ -956,23 +956,6 @@ func (kl *Kubelet) removeOrphanedPodStatuses(pods []*v1.Pod, mirrorPods []*v1.Po
 	kl.statusManager.RemoveOrphanedStatuses(podUIDs)
 }
 
-// deleteOrphanedMirrorPods checks whether pod killer has done with orphaned mirror pod.
-// If pod killing is done, podManager.DeleteMirrorPod() is called to delete mirror pod
-// from the API server
-func (kl *Kubelet) deleteOrphanedMirrorPods() {
-	podFullNames := kl.podManager.GetOrphanedMirrorPodNames()
-	for _, podFullname := range podFullNames {
-		if !kl.podKiller.IsPodPendingTerminationByPodName(podFullname) {
-			_, err := kl.podManager.DeleteMirrorPod(podFullname, nil)
-			if err != nil {
-				klog.ErrorS(err, "Encountered error when deleting mirror pod", "podName", podFullname)
-			} else {
-				klog.V(3).InfoS("Deleted pod", "podName", podFullname)
-			}
-		}
-	}
-}
-
 // HandlePodCleanups performs a series of cleanup work, including terminating
 // pod workers, killing unwanted pods, and removing orphaned volumes/pod
 // directories.
@@ -1049,9 +1032,6 @@ func (kl *Kubelet) HandlePodCleanups() error {
 		// This also applies to the other clean up tasks.
 		klog.ErrorS(err, "Failed cleaning up orphaned pod directories")
 	}
-
-	// Remove any orphaned mirror pods.
-	kl.deleteOrphanedMirrorPods()
 
 	// Remove any cgroups in the hierarchy for pods that are no longer running.
 	if kl.cgroupsPerQOS {
