@@ -381,11 +381,6 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		}
 	}
 
-	if utilfeature.DefaultFeatureGate.Enabled(features.DisableCloudProviders) && cloudprovider.IsDeprecatedInternal(cloudProvider) {
-		cloudprovider.DisableWarningForProvider(cloudProvider)
-		return nil, fmt.Errorf("cloud provider %q was specified, but built-in cloud providers are disabled. Please set --cloud-provider=external and migrate to an external cloud provider", cloudProvider)
-	}
-
 	var nodeHasSynced cache.InformerSynced
 	var nodeLister corelisters.NodeLister
 	nodeIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
@@ -1612,37 +1607,6 @@ func (kl *Kubelet) syncPod(ctx context.Context, updateType kubetypes.SyncPodType
 		}
 	}
 
-	// Create Mirror Pod for Static Pod if it doesn't already exist
-	if kubetypes.IsStaticPod(pod) {
-		deleted := false
-		if mirrorPod != nil {
-			if mirrorPod.DeletionTimestamp != nil || !kl.podManager.IsMirrorPodOf(mirrorPod, pod) {
-				// The mirror pod is semantically different from the static pod. Remove
-				// it. The mirror pod will get recreated later.
-				klog.InfoS("Trying to delete pod", "pod", klog.KObj(pod), "podUID", mirrorPod.ObjectMeta.UID)
-				podFullName := kubecontainer.GetPodFullName(pod)
-				var err error
-				deleted, err = kl.podManager.DeleteMirrorPod(podFullName, &mirrorPod.ObjectMeta.UID)
-				if deleted {
-					klog.InfoS("Deleted mirror pod because it is outdated", "pod", klog.KObj(mirrorPod))
-				} else if err != nil {
-					klog.ErrorS(err, "Failed deleting mirror pod", "pod", klog.KObj(mirrorPod))
-				}
-			}
-		}
-		if mirrorPod == nil || deleted {
-			node, err := kl.GetNode()
-			if err != nil || node.DeletionTimestamp != nil {
-				klog.V(4).InfoS("No need to create a mirror pod, since node has been removed from the cluster", "node", klog.KRef("", string(kl.nodeName)))
-			} else {
-				klog.V(4).InfoS("Creating a mirror pod for static pod", "pod", klog.KObj(pod))
-				if err := kl.podManager.CreateMirrorPod(pod); err != nil {
-					klog.ErrorS(err, "Failed creating a mirror pod for", "pod", klog.KObj(pod))
-				}
-			}
-		}
-	}
-
 	// Make data directories for the pod
 	if err := kl.makePodDataDirs(pod); err != nil {
 		kl.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedToMakePodDataDirectories, "error making pod data directories: %v", err)
@@ -2142,10 +2106,6 @@ func (kl *Kubelet) HandlePodAdditions(pods []*v1.Pod) {
 		// the apiserver and no action (other than cleanup) is required.
 		kl.podManager.AddPod(pod)
 
-		if kubetypes.IsMirrorPod(pod) {
-			kl.handleMirrorPod(pod, start)
-			continue
-		}
 
 		// Only go through the admission process if the pod is not requested
 		// for termination by another part of the kubelet. If the pod is already
@@ -2178,10 +2138,6 @@ func (kl *Kubelet) HandlePodUpdates(pods []*v1.Pod) {
 	start := kl.clock.Now()
 	for _, pod := range pods {
 		kl.podManager.UpdatePod(pod)
-		if kubetypes.IsMirrorPod(pod) {
-			kl.handleMirrorPod(pod, start)
-			continue
-		}
 		mirrorPod, _ := kl.podManager.GetMirrorPodByPod(pod)
 		kl.dispatchWork(pod, kubetypes.SyncPodUpdate, mirrorPod, start)
 	}
@@ -2190,13 +2146,8 @@ func (kl *Kubelet) HandlePodUpdates(pods []*v1.Pod) {
 // HandlePodRemoves is the callback in the SyncHandler interface for pods
 // being removed from a config source.
 func (kl *Kubelet) HandlePodRemoves(pods []*v1.Pod) {
-	start := kl.clock.Now()
 	for _, pod := range pods {
 		kl.podManager.DeletePod(pod)
-		if kubetypes.IsMirrorPod(pod) {
-			kl.handleMirrorPod(pod, start)
-			continue
-		}
 		// Deletion is allowed to fail because the periodic cleanup routine
 		// will trigger deletion again.
 		if err := kl.deletePod(pod); err != nil {
