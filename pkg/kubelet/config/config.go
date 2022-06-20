@@ -93,7 +93,7 @@ func (c *PodConfig) Channel(source string) chan<- interface{} {
 // config, and also this config has received a SET message from each source.
 func (c *PodConfig) SeenAllSources(seenSources sets.String) bool {
 	c.podReadyLock.RLock()
-	c.podReadyLock.RUnlock()
+	defer c.podReadyLock.RUnlock()
 	return c.initPodReady
 }
 
